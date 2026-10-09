@@ -79,7 +79,7 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
 }
 
 // Endpoint webhook Saweria
-app.post(["/webhook/saweria", "/webhook", "/saweria", "/api/saweria"], handleSaweriaWebhook);
+app.post(["/webhook/saweria", "//webhook/saweria", "/webhook", "/saweria", "/api/saweria"], handleSaweriaWebhook);
 
 /**
  * Endpoint Webhook Telegram (Untuk Vercel / Cloud Serverless)

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 export interface LogEntry {
   message_id: number;
@@ -9,7 +10,8 @@ export interface LogEntry {
   sent_at: string;
 }
 
-const LOG_FILE = path.resolve(process.cwd(), "logs.json");
+// Menggunakan os.tmpdir() agar kompatibel baik di Windows lokal maupun di Vercel/Cloud Serverless
+const LOG_FILE = path.resolve(os.tmpdir(), "saweria_bot_logs.json");
 
 /**
  * Membaca semua log pesan donasi yang tersimpan
@@ -21,8 +23,7 @@ export function getLogs(): LogEntry[] {
     }
     const data = fs.readFileSync(LOG_FILE, "utf-8");
     return JSON.parse(data) as LogEntry[];
-  } catch (error) {
-    console.error("[LOGGER] Gagal membaca logs.json:", error);
+  } catch {
     return [];
   }
 }
@@ -39,7 +40,7 @@ export function addLog(entry: Omit<LogEntry, "sent_at">): void {
     });
     fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2), "utf-8");
   } catch (error) {
-    console.error("[LOGGER] Gagal menulis ke logs.json:", error);
+    console.error("[LOGGER] Gagal menulis log:", error);
   }
 }
 
@@ -50,6 +51,6 @@ export function clearLogs(): void {
   try {
     fs.writeFileSync(LOG_FILE, JSON.stringify([], null, 2), "utf-8");
   } catch (error) {
-    console.error("[LOGGER] Gagal mengosongkan logs.json:", error);
+    console.error("[LOGGER] Gagal mengosongkan log:", error);
   }
 }

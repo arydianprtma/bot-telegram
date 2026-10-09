@@ -6,7 +6,7 @@ import {
 } from "./telegram.js";
 import { getLogs } from "./logger.js";
 
-interface TelegramUpdate {
+export interface TelegramUpdate {
   update_id: number;
   message?: {
     message_id: number;
@@ -63,9 +63,9 @@ export async function registerBotCommands(): Promise<void> {
 }
 
 /**
- * Memproses pesan masuk dari Telegram
+ * Memproses pesan masuk dari Telegram (bisa dipanggil via Polling maupun Webhook)
  */
-async function handleTelegramMessage(message: NonNullable<TelegramUpdate["message"]>): Promise<void> {
+export async function handleTelegramMessage(message: NonNullable<TelegramUpdate["message"]>): Promise<void> {
   const text = (message.text || "").trim();
   const chatId = message.chat.id;
   const configuredChatId = process.env.TELEGRAM_CHAT_ID;
@@ -94,21 +94,18 @@ async function handleTelegramMessage(message: NonNullable<TelegramUpdate["messag
     // Hapus juga pesan perintah yang dikirim pengguna agar chat tetap bersih
     await deleteTelegramMessage(chatId, message.message_id);
 
-    const totalLogs = getLogs().length;
+    const deleted = await deleteAllDonationLogs(chatId, message.message_id);
 
-    if (totalLogs === 0) {
+    if (deleted === 0) {
       const infoMsgId = await sendTextMessage(
         chatId,
         "ℹ️ <i>Tidak ada riwayat log donasi yang tersimpan untuk dihapus.</i>"
       );
-      // Hapus pesan info otomatis setelah 4 detik
       if (infoMsgId) {
         setTimeout(() => deleteTelegramMessage(chatId, infoMsgId), 4000);
       }
       return;
     }
-
-    const deleted = await deleteAllDonationLogs(chatId);
 
     const successMsgId = await sendTextMessage(
       chatId,
@@ -152,7 +149,7 @@ async function handleTelegramMessage(message: NonNullable<TelegramUpdate["messag
 }
 
 /**
- * Menjalankan long-polling untuk menerima update dan perintah dari Telegram
+ * Menjalankan long-polling untuk menerima update dan perintah dari Telegram (Mode Lokal)
  */
 export async function startTelegramPolling(): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -167,7 +164,7 @@ export async function startTelegramPolling(): Promise<void> {
   // Daftarkan tombol menu perintah [≡] saat bot mulai
   await registerBotCommands();
 
-  console.log("🤖 Telegram Command Listener aktif (Menu tombol [≡] siap digunakan)");
+  console.log("🤖 Telegram Command Listener aktif (Mode Polling Lokal)");
 
   while (isPolling) {
     try {
@@ -187,7 +184,6 @@ export async function startTelegramPolling(): Promise<void> {
         }
       }
     } catch {
-      // Tunggu 3 detik jika ada kendala jaringan sebelum mencoba lagi
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }

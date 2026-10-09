@@ -3,7 +3,8 @@ import express from "express";
 import type { Request, Response } from "express";
 import { formatDonationMessage, sendTelegramNotification } from "./telegram.js";
 import type { DonationData } from "./telegram.js";
-import { startTelegramPolling } from "./bot.js";
+import { startTelegramPolling, handleTelegramMessage, registerBotCommands } from "./bot.js";
+import type { TelegramUpdate } from "./bot.js";
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
@@ -18,9 +19,10 @@ app.use((req, _res, next) => {
 });
 
 // Route Beranda & Health Check
-app.get(["/", "/health"], (_req: Request, res: Response) => {
+app.get(["/", "/health", "/api"], (_req: Request, res: Response) => {
   res.json({
     status: "online",
+    platform: process.env.VERCEL ? "Vercel Serverless" : "Local/Node",
     message: "Server Webhook Saweria ke Telegram aktif dan siap menerima data!",
     timestamp: new Date().toISOString(),
   });
@@ -54,7 +56,7 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
       media: body.media,
     };
 
-    // Format dan kirim notifikasi ke Telegram (mencatat log pesan untuk fitur /hapus log)
+    // Format dan kirim notifikasi ke Telegram (mencatat log pesan untuk fitur /hapus_log)
     const teleText = formatDonationMessage(donation);
     await sendTelegramNotification(teleText, {
       donator: donation.donator,
@@ -77,9 +79,58 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
 }
 
 // Endpoint webhook Saweria
-app.post("/webhook/saweria", handleSaweriaWebhook);
-app.post("/webhook", handleSaweriaWebhook);
-app.post("/saweria", handleSaweriaWebhook);
+app.post(["/webhook/saweria", "/webhook", "/saweria", "/api/saweria"], handleSaweriaWebhook);
+
+/**
+ * Endpoint Webhook Telegram (Untuk Vercel / Cloud Serverless)
+ */
+async function handleTelegramWebhook(req: Request, res: Response): Promise<void> {
+  try {
+    const update = req.body as TelegramUpdate;
+    if (update?.message) {
+      await handleTelegramMessage(update.message);
+    }
+    res.status(200).json({ ok: true });
+  } catch (error: any) {
+    console.error("[ERROR] Gagal memproses webhook Telegram:", error);
+    res.status(200).json({ ok: false, error: error?.message });
+  }
+}
+
+app.post(["/api/telegram", "/telegram/webhook"], handleTelegramWebhook);
+
+/**
+ * Route bantuan untuk menghubungkan webhook Telegram sekali klik di browser Vercel
+ */
+app.get("/setup-webhook", async (req: Request, res: Response) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    res.status(500).send("TELEGRAM_BOT_TOKEN belum diatur!");
+    return;
+  }
+
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const webhookUrl = `${proto}://${host}/api/telegram`;
+
+  try {
+    // Daftarkan webhook Telegram
+    const whRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+    const whData = await whRes.json();
+
+    // Daftarkan menu tombol perintah [≡]
+    await registerBotCommands();
+
+    res.json({
+      success: true,
+      message: "Webhook Telegram dan Menu Perintah berhasil didaftarkan!",
+      webhookUrl,
+      telegramResponse: whData,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
 
 // Endpoint uji coba donasi
 app.all("/test-donation", async (req: Request, res: Response) => {
@@ -112,14 +163,19 @@ app.all("/test-donation", async (req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log("==================================================");
-  console.log(`🚀 Server Webhook Saweria berjalan di port ${PORT}`);
-  console.log(`📡 URL Lokal: http://localhost:${PORT}`);
-  console.log(`🔗 Endpoint Webhook: http://localhost:${PORT}/webhook/saweria`);
-  console.log(`🧪 Tes via Browser: http://localhost:${PORT}/test-donation`);
-  console.log("==================================================");
+// Hanya jalankan listener lokal jika TIDAK berada di lingkungan Vercel serverless
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log("==================================================");
+    console.log(`🚀 Server Webhook Saweria berjalan di port ${PORT}`);
+    console.log(`📡 URL Lokal: http://localhost:${PORT}`);
+    console.log(`🔗 Endpoint Webhook: http://localhost:${PORT}/webhook/saweria`);
+    console.log(`🧪 Tes via Browser: http://localhost:${PORT}/test-donation`);
+    console.log("==================================================");
 
-  // Menjalankan listener perintah Telegram (seperti /hapus log)
-  startTelegramPolling();
-});
+    // Menjalankan listener perintah Telegram lokal
+    startTelegramPolling();
+  });
+}
+
+export default app;

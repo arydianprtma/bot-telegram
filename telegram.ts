@@ -164,22 +164,33 @@ export async function deleteTelegramMessage(chatId: string | number, messageId: 
 /**
  * Menghapus semua pesan donasi yang tersimpan di log dari chat Telegram
  */
-export async function deleteAllDonationLogs(targetChatId?: string | number): Promise<number> {
+export async function deleteAllDonationLogs(targetChatId?: string | number, currentMessageId?: number): Promise<number> {
   const logs = getLogs();
-  if (logs.length === 0) {
-    return 0;
-  }
-
   let deletedCount = 0;
+  const deletedSet = new Set<number>();
+
   for (const log of logs) {
     const chatId = targetChatId || log.chat_id;
     const ok = await deleteTelegramMessage(chatId, log.message_id);
     if (ok) {
       deletedCount++;
+      deletedSet.add(log.message_id);
     }
   }
 
-  // Bersihkan data log lokal setelah dihapus dari Telegram
+  // Jika di cloud/serverless log kosong karena instance baru, bersihkan riwayat pesan bot sebelum perintah ini
+  if (currentMessageId && targetChatId) {
+    for (let id = currentMessageId - 1; id >= Math.max(1, currentMessageId - 35); id--) {
+      if (!deletedSet.has(id)) {
+        const ok = await deleteTelegramMessage(targetChatId, id);
+        if (ok) {
+          deletedCount++;
+          deletedSet.add(id);
+        }
+      }
+    }
+  }
+
   clearLogs();
   return deletedCount;
 }

@@ -5,6 +5,7 @@ import { formatDonationMessage, sendTelegramNotification } from "./telegram.js";
 import type { DonationData } from "./telegram.js";
 import { startTelegramPolling, handleTelegramMessage, registerBotCommands } from "./bot.js";
 import type { TelegramUpdate } from "./bot.js";
+import { recordDonationStats } from "./stats.js";
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
@@ -65,6 +66,9 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
 
     const netAmount = Math.max(0, amount - (cut || 0));
 
+    // Catat ke total akumulasi saldo
+    const stats = recordDonationStats(amount, netAmount);
+
     const message = body.message || body.msg || body.note || "-";
 
     const donation: DonationData = {
@@ -72,6 +76,8 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
       amount,
       cut,
       netAmount,
+      totalAccumulated: stats.totalNet,
+      donationCount: stats.donationCount,
       message: String(message),
       media: body.media,
     };
@@ -83,7 +89,9 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
       amount: donation.amount,
     });
 
-    console.log(`[SUCCESS] Notifikasi donasi dari '${donator}' senilai Rp ${amount.toLocaleString("id-ID")} berhasil dikirim ke Telegram.`);
+    console.log(
+      `[SUCCESS] Donasi '${donator}' senilai Rp ${amount.toLocaleString("id-ID")} (bersih: Rp ${netAmount.toLocaleString("id-ID")}, total: Rp ${stats.totalNet.toLocaleString("id-ID")}) berhasil dikirim.`
+    );
 
     res.status(200).json({
       ok: true,
@@ -157,9 +165,18 @@ app.all("/test-donation", async (req: Request, res: Response) => {
   const query = req.query as Record<string, string>;
   const body = (req.body || {}) as Record<string, any>;
 
+  const nominal = parseInt(body.amount || query.amount || "50000", 10);
+  const cut = Math.round(nominal * 0.05);
+  const net = nominal - cut;
+  const stats = recordDonationStats(nominal, net);
+
   const testData: DonationData = {
     donator: body.donator || query.donator || "Budi Dermawan (Test)",
-    amount: parseInt(body.amount || query.amount || "50000", 10),
+    amount: nominal,
+    cut,
+    netAmount: net,
+    totalAccumulated: stats.totalNet,
+    donationCount: stats.donationCount,
     message: body.message || query.message || "Semangat terus kontennya bang! 🔥",
   };
 

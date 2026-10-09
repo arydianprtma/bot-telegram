@@ -44,14 +44,34 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
       body.from ||
       "Anonim";
 
-    const rawAmount = body.amount ?? body.amount_raw ?? 0;
-    const amount = typeof rawAmount === "number" ? rawAmount : parseInt(String(rawAmount), 10) || 0;
+    // Saweria mengirimkan:
+    // - amount_raw : nominal murni donasi dari donatur (misal 5.000)
+    // - cut        : potongan biaya layanan platform (misal 250)
+    // - amount     : total pembayaran payment gateway termasuk PPN/biaya QRIS (misal 5.036)
+    const gross = body.amount_raw ?? body.etc?.amount_to_display ?? body.amount ?? 0;
+    const amount = typeof gross === "number" ? gross : parseInt(String(gross), 10) || 0;
+
+    let cut: number | undefined = undefined;
+    if (typeof body.cut === "number") {
+      cut = body.cut;
+    } else if (body.cut !== undefined && body.cut !== null) {
+      cut = parseInt(String(body.cut), 10) || undefined;
+    }
+
+    // Jika cut tidak dikirim oleh webhook, gunakan kalkulasi standar 5% Saweria
+    if (cut === undefined && amount > 0) {
+      cut = Math.round(amount * 0.05);
+    }
+
+    const netAmount = Math.max(0, amount - (cut || 0));
 
     const message = body.message || body.msg || body.note || "-";
 
     const donation: DonationData = {
       donator: String(donator),
       amount,
+      cut,
+      netAmount,
       message: String(message),
       media: body.media,
     };

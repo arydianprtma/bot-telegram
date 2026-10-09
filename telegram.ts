@@ -4,6 +4,8 @@ import { addLog, getLogs, clearLogs } from "./logger.js";
 export interface DonationData {
   donator: string;
   amount: number;
+  cut?: number | undefined;
+  netAmount?: number | undefined;
   message: string;
   media?: unknown;
 }
@@ -42,7 +44,7 @@ export function formatWIB(date = new Date()): string {
 }
 
 /**
- * Format pesan notifikasi donasi Telegram yang menarik dan rapi
+ * Format pesan notifikasi donasi Telegram yang menarik dan menampilkan rincian bersih
  */
 export function formatDonationMessage(donation: DonationData): string {
   const safeName = escapeHtml(donation.donator || "Anonim");
@@ -50,11 +52,20 @@ export function formatDonationMessage(donation: DonationData): string {
   const nominal = formatRupiah(donation.amount);
   const waktu = formatWIB();
 
+  const cut = donation.cut ?? Math.round(donation.amount * 0.05);
+  const net = donation.netAmount ?? Math.max(0, donation.amount - cut);
+
+  let rincianNominal = `💰 <b>Donasi:</b> <b>${nominal}</b>\n`;
+  if (cut > 0) {
+    rincianNominal += `🏷️ <b>Biaya Layanan:</b> -${formatRupiah(cut)}\n`;
+    rincianNominal += `💵 <b>Bersih Diterima:</b> <b>${formatRupiah(net)}</b>\n`;
+  }
+
   return (
     `🎉 <b>DONASI BARU DITERIMA!</b> 🎉\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `👤 <b>Dari:</b> <b>${safeName}</b>\n` +
-    `💰 <b>Nominal:</b> <b>${nominal}</b>\n` +
+    rincianNominal +
     `💬 <b>Pesan:</b>\n` +
     `<i>"${safeMsg}"</i>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +

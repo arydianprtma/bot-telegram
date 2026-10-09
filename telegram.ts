@@ -6,8 +6,6 @@ export interface DonationData {
   amount: number;
   cut?: number | undefined;
   netAmount?: number | undefined;
-  totalAccumulated?: number | undefined;
-  donationCount?: number | undefined;
   message: string;
   media?: unknown;
 }
@@ -46,7 +44,7 @@ export function formatWIB(date = new Date()): string {
 }
 
 /**
- * Format pesan notifikasi donasi Telegram yang menampilkan rincian bersih & total akumulasi saldo
+ * Format pesan notifikasi donasi Telegram yang ringkas dan rapi
  */
 export function formatDonationMessage(donation: DonationData): string {
   const safeName = escapeHtml(donation.donator || "Anonim");
@@ -63,21 +61,11 @@ export function formatDonationMessage(donation: DonationData): string {
     rincianNominal += `💵 <b>Bersih Diterima:</b> <b>${formatRupiah(net)}</b>\n`;
   }
 
-  let totalInfo = "";
-  if (donation.totalAccumulated !== undefined && donation.totalAccumulated > 0) {
-    const countStr = donation.donationCount ? ` (${donation.donationCount}x donasi)` : "";
-    totalInfo = (
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `💼 <b>Total Saldo Terkumpul:</b> <b>${formatRupiah(donation.totalAccumulated)}</b>${countStr}\n`
-    );
-  }
-
   return (
     `🎉 <b>DONASI BARU DITERIMA!</b> 🎉\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `👤 <b>Dari:</b> <b>${safeName}</b>\n` +
     rincianNominal +
-    totalInfo +
     `💬 <b>Pesan:</b>\n` +
     `<i>"${safeMsg}"</i>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +

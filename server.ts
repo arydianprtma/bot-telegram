@@ -76,8 +76,6 @@ async function handleSaweriaWebhook(req: Request, res: Response): Promise<void> 
       amount,
       cut,
       netAmount,
-      totalAccumulated: stats.totalNet,
-      donationCount: stats.donationCount,
       message: String(message),
       media: body.media,
     };
@@ -175,8 +173,6 @@ app.all("/test-donation", async (req: Request, res: Response) => {
     amount: nominal,
     cut,
     netAmount: net,
-    totalAccumulated: stats.totalNet,
-    donationCount: stats.donationCount,
     message: body.message || query.message || "Semangat terus kontennya bang! 🔥",
   };
 

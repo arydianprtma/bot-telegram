@@ -43,10 +43,11 @@ export async function registerBotCommands(): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         commands: [
+          { command: "saldo", description: "Lihat total saldo donasi terkumpul" },
           { command: "hapus_log", description: "Hapus semua notifikasi log donasi" },
-          { command: "status", description: "Cek total saldo & status bot" },
-          { command: "reset_total", description: "Reset hitungan total saldo donasi" },
-          { command: "help", description: "Bantuan & panduan perintah bot" },
+          { command: "reset_total", description: "Reset hitungan saldo ke Rp 0" },
+          { command: "status", description: "Cek status bot" },
+          { command: "help", description: "Bantuan & panduan perintah" },
         ],
       }),
     });
@@ -82,6 +83,23 @@ export async function handleTelegramMessage(message: NonNullable<TelegramUpdate[
   // Normalisasi perintah (menghilangkan @username jika dipanggil di grup)
   const lowerText = text.toLowerCase();
   const baseCmd = lowerText.split("@")[0]?.trim() || "";
+
+  // Handler perintah /saldo atau /total_saldo
+  if (baseCmd === "/saldo" || baseCmd === "/total_saldo" || baseCmd === "/totalsaldo") {
+    const stats = getStats();
+    await sendTextMessage(
+      chatId,
+      `💼 <b>TOTAL SALDO DONASI TERKUMPUL:</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `💵 <b>Saldo Bersih:</b> <b>${formatRupiah(stats.totalNet)}</b>\n` +
+      `💰 <b>Total Donasi:</b> ${formatRupiah(stats.totalGross)}\n` +
+      `🏷️ <b>Total Biaya Layanan:</b> -${formatRupiah(Math.max(0, stats.totalGross - stats.totalNet))}\n` +
+      `📊 <b>Frekuensi:</b> ${stats.donationCount}x donasi masuk\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `💡 Klik <b>/reset_total</b> jika ingin mereset saldo ini ke Rp 0.`
+    );
+    return;
+  }
 
   // Handler perintah /hapus_log, /hapus log, /hapus, /clear
   if (
@@ -128,7 +146,7 @@ export async function handleTelegramMessage(message: NonNullable<TelegramUpdate[
     await deleteTelegramMessage(chatId, message.message_id);
     const msgId = await sendTextMessage(
       chatId,
-      "🔄 <b>Total saldo donasi terkumpul berhasil di-reset ke Rp 0.</b> (Cocok untuk mulai sesi live baru)"
+      "🔄 <b>Total saldo donasi berhasil di-reset ke Rp 0.</b> (Siap untuk sesi live baru)"
     );
     if (msgId) {
       setTimeout(() => deleteTelegramMessage(chatId, msgId), 5000);
@@ -145,11 +163,11 @@ export async function handleTelegramMessage(message: NonNullable<TelegramUpdate[
       `📊 <b>Status & Saldo Bot Saweria:</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🟢 Status: <b>Aktif & Siap Menerima Donasi</b>\n` +
-      `💼 Total Bersih Terkumpul: <b>${formatRupiah(stats.totalNet)}</b>\n` +
-      `💰 Total Kotor Donasi: <b>${formatRupiah(stats.totalGross)}</b> (${stats.donationCount}x donasi)\n` +
+      `💼 Total Bersih Terkumpul: <b>${formatRupiah(stats.totalNet)}</b> (${stats.donationCount}x donasi)\n` +
       `📝 Log tersimpan di chat: <b>${logs.length} pesan</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `💡 Klik <b>/hapus_log</b> untuk membersihkan pesan chat.\n` +
+      `💡 Klik <b>/saldo</b> untuk rincian saldo terkumpul.\n` +
+      `💡 Klik <b>/hapus_log</b> untuk membersihkan chat.\n` +
       `💡 Klik <b>/reset_total</b> untuk mengulang hitungan saldo ke 0.`
     );
     return;
@@ -164,9 +182,10 @@ export async function handleTelegramMessage(message: NonNullable<TelegramUpdate[
       `Setiap donasi masuk di Saweria akan otomatis diteruskan ke sini.\n\n` +
       `💼 <b>Total Saldo Terkumpul Saat Ini:</b> <b>${formatRupiah(stats.totalNet)}</b>\n\n` +
       `<b>Gunakan tombol menu [≡] atau klik perintah berikut:</b>\n` +
+      `• /saldo : Melihat total saldo donasi yang terkumpul\n` +
       `• /hapus_log : Menghapus semua pesan donasi yang masuk ke chat ini\n` +
-      `• /status : Melihat total saldo terkumpul dan status bot\n` +
       `• /reset_total : Mereset hitungan total saldo donasi ke Rp 0\n` +
+      `• /status : Melihat status bot dan log tersimpan\n` +
       `• /help : Menampilkan pesan bantuan ini`
     );
     return;
